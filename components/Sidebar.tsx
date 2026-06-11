@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Member } from "@/lib/types";
 import { useCurrentMemberId } from "@/lib/currentUser";
+import { AUTOPROPOSAL_ENABLED } from "@/lib/flags";
 
 const NAV = [
   { href: "/", label: "홈", emoji: "🏠" },
@@ -12,7 +13,10 @@ const NAV = [
   { href: "/papers", label: "논문", emoji: "📄" },
   { href: "/keywords", label: "키워드", emoji: "🔗" },
   { href: "/proposals", label: "제안서 버전", emoji: "🗂️" },
-  { href: "/autoproposal", label: "autoproposal", emoji: "🤖" },
+  // autoproposal 실행은 로컬 pixt-runner 의존 → 플래그가 켜진 환경에서만 노출
+  ...(AUTOPROPOSAL_ENABLED
+    ? [{ href: "/autoproposal", label: "autoproposal", emoji: "🤖" }]
+    : []),
 ];
 
 const NOTES = [
