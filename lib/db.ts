@@ -238,7 +238,11 @@ export async function uploadProposalFile(
   proposalId: string,
   file: File
 ): Promise<{ path: string; name: string }> {
-  const safe = file.name.replace(/[^\w.\-가-힣]/g, "_");
+  // Supabase Storage 키는 ASCII 안전 문자만 허용하므로 한글 등은 "_"로 치환한다.
+  // 원본 파일명은 아래 name 필드로 별도 보존되어 화면 표시에 사용된다.
+  const safe =
+    file.name.replace(/[^\w.\-]/g, "_").replace(/_{2,}/g, "_").replace(/^_+/, "") ||
+    "file";
   const path = `${proposalId}/${Date.now()}_${safe}`;
   const { error } = await supabase.storage
     .from(PROPOSAL_BUCKET)
