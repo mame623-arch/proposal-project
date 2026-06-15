@@ -12,6 +12,7 @@ import {
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useMembers } from "@/lib/useMembers";
 import { useCurrentMemberId } from "@/lib/currentUser";
+import { AuthorSelect } from "@/components/AuthorSelect";
 import { KeywordChip, KeywordTag } from "@/components/KeywordChip";
 import {
   EmptyState,
@@ -33,6 +34,7 @@ interface Draft {
   authors: string;
   note: string;
   keywords: string;
+  added_by: string | null;
 }
 
 const EMPTY: Draft = {
@@ -42,6 +44,7 @@ const EMPTY: Draft = {
   authors: "",
   note: "",
   keywords: "",
+  added_by: null,
 };
 
 function KindBadge({ kind }: { kind: string }) {
@@ -100,14 +103,12 @@ export default function PapersPage() {
         authors: draft.authors.trim(),
         note: draft.note,
         keywords: parseKeywords(draft.keywords),
+        added_by: draft.added_by,
       };
       if (draft.id) {
-        await updatePaper(draft.id, {
-          ...base,
-          added_by: papers.find((p) => p.id === draft.id)?.added_by ?? currentId,
-        });
+        await updatePaper(draft.id, base);
       } else {
-        await createPaper({ ...base, added_by: currentId });
+        await createPaper(base);
       }
       setDraft(null);
       await load();
@@ -136,7 +137,7 @@ export default function PapersPage() {
           </p>
         </div>
         {!draft && (
-          <PrimaryBtn onClick={() => setDraft({ ...EMPTY })}>
+          <PrimaryBtn onClick={() => setDraft({ ...EMPTY, added_by: currentId })}>
             + 논문 추가
           </PrimaryBtn>
         )}
@@ -179,16 +180,24 @@ export default function PapersPage() {
                 </select>
               </Field>
             </div>
-            <Field label="저자 (선택)">
-              <input
-                className={inputCls}
-                value={draft.authors}
-                placeholder="예: Ashish Vaswani 외"
-                onChange={(e) =>
-                  setDraft({ ...draft, authors: e.target.value })
-                }
-              />
-            </Field>
+            <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
+              <Field label="저자 (선택)" hint="논문 저자">
+                <input
+                  className={inputCls}
+                  value={draft.authors}
+                  placeholder="예: Ashish Vaswani 외"
+                  onChange={(e) =>
+                    setDraft({ ...draft, authors: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="등록자" hint="이 논문을 추가한 팀원">
+                <AuthorSelect
+                  value={draft.added_by}
+                  onChange={(id) => setDraft({ ...draft, added_by: id })}
+                />
+              </Field>
+            </div>
             <Field
               label="키워드"
               hint="쉼표로 구분 · 주제 페이지의 키워드와 연결됩니다"
@@ -295,6 +304,7 @@ export default function PapersPage() {
                         authors: p.authors,
                         note: p.note,
                         keywords: (p.keywords ?? []).join(", "),
+                        added_by: p.added_by,
                       })
                     }
                   >

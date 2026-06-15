@@ -13,6 +13,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { useMembers } from "@/lib/useMembers";
 import { useCurrentMemberId } from "@/lib/currentUser";
 import Markdown from "@/components/Markdown";
+import { AuthorSelect } from "@/components/AuthorSelect";
 import {
   EmptyState,
   Field,
@@ -39,6 +40,7 @@ interface Draft {
   title: string;
   date: string;
   body: string;
+  author_id: string | null;
 }
 
 export default function MeetingsPage() {
@@ -65,7 +67,7 @@ export default function MeetingsPage() {
   }, []);
 
   function newDraft() {
-    setDraft({ title: "", date: today(), body: "" });
+    setDraft({ title: "", date: today(), body: "", author_id: currentId });
     setTab("write");
   }
 
@@ -77,15 +79,12 @@ export default function MeetingsPage() {
         title: draft.title.trim(),
         date: draft.date,
         body: draft.body,
+        author_id: draft.author_id,
       };
       if (draft.id) {
-        await updateMeeting(draft.id, {
-          ...base,
-          author_id:
-            meetings.find((m) => m.id === draft.id)?.author_id ?? currentId,
-        });
+        await updateMeeting(draft.id, base);
       } else {
-        await createMeeting({ ...base, author_id: currentId });
+        await createMeeting(base);
       }
       setDraft(null);
       await load();
@@ -118,7 +117,7 @@ export default function MeetingsPage() {
       {draft && (
         <div className="mt-6 rounded-xl border border-line bg-bg p-5">
           <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
+            <div className="grid gap-3 sm:grid-cols-[1fr_160px_180px]">
               <Field label="제목">
                 <input
                   className={inputCls}
@@ -137,6 +136,12 @@ export default function MeetingsPage() {
                   onChange={(e) =>
                     setDraft({ ...draft, date: e.target.value })
                   }
+                />
+              </Field>
+              <Field label="작성자">
+                <AuthorSelect
+                  value={draft.author_id}
+                  onChange={(id) => setDraft({ ...draft, author_id: id })}
                 />
               </Field>
             </div>
@@ -230,6 +235,7 @@ export default function MeetingsPage() {
                         title: m.title,
                         date: m.date.slice(0, 10),
                         body: m.body,
+                        author_id: m.author_id,
                       })
                     }
                   >

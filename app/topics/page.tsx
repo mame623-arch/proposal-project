@@ -13,6 +13,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { useMembers } from "@/lib/useMembers";
 import { useCurrentMemberId } from "@/lib/currentUser";
 import Markdown from "@/components/Markdown";
+import { AuthorSelect } from "@/components/AuthorSelect";
 import { KeywordChip } from "@/components/KeywordChip";
 import {
   EmptyState,
@@ -41,9 +42,10 @@ interface Draft {
   title: string;
   body: string;
   keywords: string;
+  author_id: string | null;
 }
 
-const EMPTY: Draft = { title: "", body: "", keywords: "" };
+const EMPTY: Draft = { title: "", body: "", keywords: "", author_id: null };
 
 export default function TopicsPage() {
   const { byId } = useMembers();
@@ -76,15 +78,12 @@ export default function TopicsPage() {
         title: draft.title.trim(),
         body: draft.body,
         keywords: parseKeywords(draft.keywords),
+        author_id: draft.author_id,
       };
       if (draft.id) {
-        await updateTopic(draft.id, {
-          ...base,
-          author_id:
-            topics.find((t) => t.id === draft.id)?.author_id ?? currentId,
-        });
+        await updateTopic(draft.id, base);
       } else {
-        await createTopic({ ...base, author_id: currentId });
+        await createTopic(base);
       }
       setDraft(null);
       setTab("write");
@@ -114,7 +113,7 @@ export default function TopicsPage() {
           </p>
         </div>
         {!draft && (
-          <PrimaryBtn onClick={() => setDraft({ ...EMPTY })}>
+          <PrimaryBtn onClick={() => setDraft({ ...EMPTY, author_id: currentId })}>
             + 새 주제
           </PrimaryBtn>
         )}
@@ -135,19 +134,27 @@ export default function TopicsPage() {
               />
             </Field>
 
-            <Field
-              label="키워드"
-              hint="쉼표로 구분 · 논문 페이지의 키워드와 자동 연결됩니다"
-            >
-              <input
-                className={inputCls}
-                value={draft.keywords}
-                placeholder="safety, multi-agent, LLM-inference"
-                onChange={(e) =>
-                  setDraft({ ...draft, keywords: e.target.value })
-                }
-              />
-            </Field>
+            <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
+              <Field
+                label="키워드"
+                hint="쉼표로 구분 · 논문 페이지의 키워드와 자동 연결됩니다"
+              >
+                <input
+                  className={inputCls}
+                  value={draft.keywords}
+                  placeholder="safety, multi-agent, LLM-inference"
+                  onChange={(e) =>
+                    setDraft({ ...draft, keywords: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="작성자">
+                <AuthorSelect
+                  value={draft.author_id}
+                  onChange={(id) => setDraft({ ...draft, author_id: id })}
+                />
+              </Field>
+            </div>
 
             <div>
               <div className="mb-1 flex items-center gap-1">
@@ -238,6 +245,7 @@ export default function TopicsPage() {
                         title: t.title,
                         body: t.body,
                         keywords: (t.keywords ?? []).join(", "),
+                        author_id: t.author_id,
                       })
                     }
                   >

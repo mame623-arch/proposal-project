@@ -14,6 +14,7 @@ import {
   uploadProposalFile,
 } from "@/lib/db";
 import Markdown from "@/components/Markdown";
+import { AuthorSelect } from "@/components/AuthorSelect";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useMembers } from "@/lib/useMembers";
 import { useCurrentMemberId } from "@/lib/currentUser";
@@ -156,8 +157,19 @@ function ProposalCard({
   const [open, setOpen] = useState(true);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [v, setV] = useState({ label: "", url: "", changelog: "" });
+  const [v, setV] = useState<{
+    label: string;
+    url: string;
+    changelog: string;
+    author_id: string | null;
+  }>({ label: "", url: "", changelog: "", author_id: null });
   const [file, setFile] = useState<File | null>(null);
+
+  function openAdd() {
+    setV({ label: "", url: "", changelog: "", author_id: currentId });
+    setFile(null);
+    setAdding(true);
+  }
 
   const load = () =>
     fetchVersions(proposal.id).then(setVersions).catch((e) => console.error(e));
@@ -189,10 +201,10 @@ function ProposalCard({
         file_path,
         file_name,
         file_url: v.url.trim() || null,
-        author_id: currentId,
+        author_id: v.author_id,
         changelog: v.changelog.trim(),
       });
-      setV({ label: "", url: "", changelog: "" });
+      setV({ label: "", url: "", changelog: "", author_id: null });
       setFile(null);
       setAdding(false);
       await load();
@@ -232,7 +244,9 @@ function ProposalCard({
           )}
         </button>
         <div className="flex shrink-0 gap-1">
-          <GhostBtn onClick={() => setAdding((a) => !a)}>+ 버전</GhostBtn>
+          <GhostBtn onClick={() => (adding ? setAdding(false) : openAdd())}>
+            + 버전
+          </GhostBtn>
           <GhostBtn onClick={() => onDelete(proposal.id)}>삭제</GhostBtn>
         </div>
       </div>
@@ -240,7 +254,7 @@ function ProposalCard({
       {adding && (
         <div className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+            <div className="grid gap-3 sm:grid-cols-[120px_1fr_200px]">
               <Field label="버전" hint={`예: ${suggestLabel()}`}>
                 <input
                   className={inputCls}
@@ -255,6 +269,12 @@ function ProposalCard({
                   value={v.url}
                   placeholder="https://…"
                   onChange={(e) => setV({ ...v, url: e.target.value })}
+                />
+              </Field>
+              <Field label="작성자">
+                <AuthorSelect
+                  value={v.author_id}
+                  onChange={(id) => setV({ ...v, author_id: id })}
                 />
               </Field>
             </div>
@@ -319,10 +339,16 @@ function VersionRow({
   const [showLog, setShowLog] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [e, setE] = useState({
+  const [e, setE] = useState<{
+    label: string;
+    url: string;
+    changelog: string;
+    author_id: string | null;
+  }>({
     label: ver.version_label,
     url: ver.file_url ?? "",
     changelog: ver.changelog ?? "",
+    author_id: ver.author_id,
   });
   const [file, setFile] = useState<File | null>(null);
 
@@ -331,6 +357,7 @@ function VersionRow({
       label: ver.version_label,
       url: ver.file_url ?? "",
       changelog: ver.changelog ?? "",
+      author_id: ver.author_id,
     });
     setFile(null);
     setEditing(true);
@@ -343,6 +370,7 @@ function VersionRow({
         version_label: e.label.trim() || ver.version_label,
         file_url: e.url.trim() || null,
         changelog: e.changelog.trim(),
+        author_id: e.author_id,
       };
       if (file) {
         const up = await uploadProposalFile(proposalId, file);
@@ -363,7 +391,7 @@ function VersionRow({
     <li className="rounded-lg border border-line bg-bg p-3.5">
       {editing ? (
         <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+          <div className="grid gap-3 sm:grid-cols-[120px_1fr_200px]">
             <Field label="버전">
               <input
                 className={inputCls}
@@ -377,6 +405,12 @@ function VersionRow({
                 value={e.url}
                 placeholder="https://…"
                 onChange={(ev) => setE({ ...e, url: ev.target.value })}
+              />
+            </Field>
+            <Field label="작성자">
+              <AuthorSelect
+                value={e.author_id}
+                onChange={(id) => setE({ ...e, author_id: id })}
               />
             </Field>
           </div>
