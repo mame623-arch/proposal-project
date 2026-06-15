@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Proposal, ProposalVersion } from "@/lib/types";
+import type { Member, Proposal, ProposalVersion } from "@/lib/types";
 import {
   createProposal,
   createVersion,
@@ -10,8 +10,10 @@ import {
   fetchProposals,
   fetchVersions,
   fileUrl,
+  updateVersion,
   uploadProposalFile,
 } from "@/lib/db";
+import Markdown from "@/components/Markdown";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useMembers } from "@/lib/useMembers";
 import { useCurrentMemberId } from "@/lib/currentUser";
@@ -263,11 +265,13 @@ function ProposalCard({
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
             </Field>
-            <Field label="변경 요약" hint="이전 버전 대비 무엇을 바꿨는지">
+            <Field label="변경 요약" hint="마크다운 지원 · 이전 버전 대비 무엇을 바꿨는지">
               <textarea
-                className={`${inputCls} min-h-[70px]`}
+                className={`${inputCls} min-h-[90px] font-mono text-[0.82rem]`}
                 value={v.changelog}
-                placeholder="예: 평가배점에 맞춰 분량 재배분, 정량 수치 보강, 그림2 추가"
+                placeholder={
+                  "예:\n- 평가배점에 맞춰 **분량 재배분**\n- 정량 수치 보강\n- 그림2 추가"
+                }
                 onChange={(e) => setV({ ...v, changelog: e.target.value })}
               />
             </Field>
@@ -284,56 +288,191 @@ function ProposalCard({
       {open && versions.length > 0 && (
         <ol className="mt-4 space-y-2 border-t border-line pt-4">
           {versions.map((ver) => (
-            <li
+            <VersionRow
               key={ver.id}
-              className="rounded-lg border border-line bg-bg p-3.5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-md bg-ink px-2 py-0.5 text-[0.72rem] font-bold text-white">
-                      {ver.version_label}
-                    </span>
-                    {ver.file_path && (
-                      <a
-                        href={fileUrl(ver.file_path)}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
-                      >
-                        ⬇ {ver.file_name ?? "파일"}
-                      </a>
-                    )}
-                    {ver.file_url && (
-                      <a
-                        href={ver.file_url}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
-                      >
-                        🔗 링크
-                      </a>
-                    )}
-                  </div>
-                  {ver.changelog && (
-                    <p className="mt-1.5 whitespace-pre-wrap text-[0.84rem] text-body">
-                      {ver.changelog}
-                    </p>
-                  )}
-                  <div className="mt-1.5 flex items-center gap-2 text-[0.74rem] text-faint">
-                    <MemberAvatarName
-                      member={byId.get(ver.author_id ?? "")}
-                      size={18}
-                    />
-                    <span>· {formatDateTime(ver.created_at)}</span>
-                  </div>
-                </div>
-                <GhostBtn onClick={() => removeVersion(ver.id)}>삭제</GhostBtn>
-              </div>
-            </li>
+              ver={ver}
+              proposalId={proposal.id}
+              byId={byId}
+              onChanged={load}
+              onDelete={removeVersion}
+            />
           ))}
         </ol>
       )}
     </div>
+  );
+}
+
+function VersionRow({
+  ver,
+  proposalId,
+  byId,
+  onChanged,
+  onDelete,
+}: {
+  ver: ProposalVersion;
+  proposalId: string;
+  byId: Map<string, Member>;
+  onChanged: () => void;
+  onDelete: (id: string) => void;
+}) {
+  const [showLog, setShowLog] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [e, setE] = useState({
+    label: ver.version_label,
+    url: ver.file_url ?? "",
+    changelog: ver.changelog ?? "",
+  });
+  const [file, setFile] = useState<File | null>(null);
+
+  function startEdit() {
+    setE({
+      label: ver.version_label,
+      url: ver.file_url ?? "",
+      changelog: ver.changelog ?? "",
+    });
+    setFile(null);
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    setSaving(true);
+    try {
+      const patch: Record<string, unknown> = {
+        version_label: e.label.trim() || ver.version_label,
+        file_url: e.url.trim() || null,
+        changelog: e.changelog.trim(),
+      };
+      if (file) {
+        const up = await uploadProposalFile(proposalId, file);
+        patch.file_path = up.path;
+        patch.file_name = up.name;
+      }
+      await updateVersion(ver.id, patch);
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      alert("버전 수정 실패: " + (err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li className="rounded-lg border border-line bg-bg p-3.5">
+      {editing ? (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+            <Field label="버전">
+              <input
+                className={inputCls}
+                value={e.label}
+                onChange={(ev) => setE({ ...e, label: ev.target.value })}
+              />
+            </Field>
+            <Field label="외부 링크 (선택)" hint="구글닥스/노션 등">
+              <input
+                className={inputCls}
+                value={e.url}
+                placeholder="https://…"
+                onChange={(ev) => setE({ ...e, url: ev.target.value })}
+              />
+            </Field>
+          </div>
+          <Field
+            label="제안서 파일 교체 (선택)"
+            hint={
+              ver.file_name
+                ? `현재: ${ver.file_name} · 새 파일 선택 시 교체`
+                : "hwp / pdf / html 등"
+            }
+          >
+            <input
+              type="file"
+              className="block w-full text-[0.82rem] text-muted file:mr-3 file:rounded-md file:border-0 file:bg-accentsoft file:px-3 file:py-1.5 file:text-[0.8rem] file:font-semibold file:text-accent hover:file:brightness-95"
+              onChange={(ev) => setFile(ev.target.files?.[0] ?? null)}
+            />
+          </Field>
+          <Field label="변경 요약" hint="마크다운 지원">
+            <textarea
+              className={`${inputCls} min-h-[90px] font-mono text-[0.82rem]`}
+              value={e.changelog}
+              onChange={(ev) => setE({ ...e, changelog: ev.target.value })}
+            />
+          </Field>
+          <div className="flex gap-2">
+            <PrimaryBtn onClick={saveEdit} disabled={saving}>
+              {saving ? "저장 중…" : "수정 저장"}
+            </PrimaryBtn>
+            <GhostBtn onClick={() => setEditing(false)}>취소</GhostBtn>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-ink px-2 py-0.5 text-[0.72rem] font-bold text-white">
+                {ver.version_label}
+              </span>
+              {ver.file_path && (
+                <a
+                  href={fileUrl(ver.file_path, ver.file_name ?? undefined)}
+                  download={ver.file_name ?? undefined}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
+                >
+                  ⬇ {ver.file_name ?? "파일"}
+                </a>
+              )}
+              {ver.file_url && (
+                <a
+                  href={ver.file_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
+                >
+                  🔗 링크
+                </a>
+              )}
+            </div>
+            {ver.changelog && (
+              <div className="mt-1.5">
+                <button
+                  onClick={() => setShowLog((s) => !s)}
+                  className="flex items-center gap-1 text-[0.8rem] font-semibold text-muted hover:text-body"
+                >
+                  <span
+                    className={`inline-block transition-transform ${
+                      showLog ? "rotate-90" : ""
+                    }`}
+                  >
+                    ▸
+                  </span>
+                  변경 요약
+                </button>
+                {showLog && (
+                  <div className="mt-1.5 rounded-md border border-line bg-surface px-3 py-2 text-[0.84rem] text-body">
+                    <Markdown>{ver.changelog}</Markdown>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="mt-1.5 flex items-center gap-2 text-[0.74rem] text-faint">
+              <MemberAvatarName
+                member={byId.get(ver.author_id ?? "")}
+                size={18}
+              />
+              <span>· {formatDateTime(ver.created_at)}</span>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <GhostBtn onClick={startEdit}>수정</GhostBtn>
+            <GhostBtn onClick={() => onDelete(ver.id)}>삭제</GhostBtn>
+          </div>
+        </div>
+      )}
+    </li>
   );
 }

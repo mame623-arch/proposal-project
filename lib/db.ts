@@ -225,6 +225,17 @@ export async function createVersion(
   return data as ProposalVersion;
 }
 
+export async function updateVersion(
+  id: string,
+  input: Partial<VersionInput>
+): Promise<void> {
+  const { error } = await supabase
+    .from("proposal_versions")
+    .update(input)
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteVersion(id: string): Promise<void> {
   const { error } = await supabase
     .from("proposal_versions")
@@ -251,10 +262,15 @@ export async function uploadProposalFile(
   return { path, name: file.name };
 }
 
-/** Storage 경로 → 공개 다운로드 URL. */
-export function fileUrl(path: string): string {
-  return supabase.storage.from(PROPOSAL_BUCKET).getPublicUrl(path).data
-    .publicUrl;
+/**
+ * Storage 경로 → 공개 다운로드 URL.
+ * downloadName을 주면 Content-Disposition으로 그 이름(원본 파일명)으로 저장된다.
+ */
+export function fileUrl(path: string, downloadName?: string): string {
+  return supabase.storage
+    .from(PROPOSAL_BUCKET)
+    .getPublicUrl(path, downloadName ? { download: downloadName } : undefined)
+    .data.publicUrl;
 }
 
 // ── keywords (집계) ──────────────────────────────────────────
