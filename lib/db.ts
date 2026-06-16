@@ -245,6 +245,18 @@ export async function deleteVersion(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * 업로드할 파일의 Content-Type을 확장자로 결정한다.
+ * 특히 html은 text/html로 올려야 브라우저가 다운로드하지 않고 렌더링한다
+ * (charset을 명시해 한글 깨짐도 방지).
+ */
+function contentTypeForUpload(file: File): string {
+  const ext = file.name.toLowerCase().split(".").pop() ?? "";
+  if (ext === "html" || ext === "htm") return "text/html; charset=utf-8";
+  if (ext === "pdf") return "application/pdf";
+  return file.type || "application/octet-stream";
+}
+
 /** 제안서 파일을 Storage에 업로드하고 경로를 반환. */
 export async function uploadProposalFile(
   proposalId: string,
@@ -256,9 +268,17 @@ export async function uploadProposalFile(
     file.name.replace(/[^\w.\-]/g, "_").replace(/_{2,}/g, "_").replace(/^_+/, "") ||
     "file";
   const path = `${proposalId}/${Date.now()}_${safe}`;
+  // supabase-js는 Blob/File 업로드 시 options.contentType을 무시하고 Blob 자체의
+  // type을 저장 Content-Type으로 쓴다. 기본 File.type은 html에 charset이 없거나
+  // 부정확할 수 있으므로, 올바른 MIME을 가진 File로 감싸 업로드한다.
+  const contentType = contentTypeForUpload(file);
+  const typed =
+    file.type === contentType
+      ? file
+      : new File([file], file.name, { type: contentType });
   const { error } = await supabase.storage
     .from(PROPOSAL_BUCKET)
-    .upload(path, file, { upsert: false });
+    .upload(path, typed, { upsert: false, contentType });
   if (error) throw error;
   return { path, name: file.name };
 }
