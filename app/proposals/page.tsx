@@ -389,6 +389,30 @@ function VersionRow({
     }
   }
 
+  const isHtml = /\.html?$/i.test(ver.file_name ?? ver.file_path ?? "");
+
+  // Supabase Storage 공개 URL은 CSP(default-src 'none'; sandbox)로 서빙되어
+  // HTML을 직접 새 탭에서 열면 인라인 스타일/이미지가 모두 차단된다.
+  // 파일을 직접 받아 우리 앱 출처의 blob URL로 띄우면 CSP 없이 정상 렌더링된다.
+  async function openHtml() {
+    if (!ver.file_path) return;
+    const w = window.open("", "_blank"); // 팝업 차단 회피: 클릭 시점에 먼저 연다
+    try {
+      const res = await fetch(fileUrl(ver.file_path));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = await res.arrayBuffer();
+      const url = URL.createObjectURL(
+        new Blob([buf], { type: "text/html; charset=utf-8" })
+      );
+      if (w) w.location.href = url;
+      else window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      if (w) w.close();
+      alert("미리보기 실패: " + (err as Error).message);
+    }
+  }
+
   return (
     <li className="rounded-lg border border-line bg-bg p-3.5">
       {editing ? (
@@ -455,14 +479,23 @@ function VersionRow({
               </span>
               {ver.file_path && (
                 <span className="inline-flex items-center gap-2">
-                  <a
-                    href={fileUrl(ver.file_path)}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
-                  >
-                    👁 {ver.file_name ?? "파일"}
-                  </a>
+                  {isHtml ? (
+                    <button
+                      onClick={openHtml}
+                      className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
+                    >
+                      👁 {ver.file_name ?? "파일"}
+                    </button>
+                  ) : (
+                    <a
+                      href={fileUrl(ver.file_path)}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
+                    >
+                      👁 {ver.file_name ?? "파일"}
+                    </a>
+                  )}
                   <a
                     href={fileUrl(ver.file_path, ver.file_name ?? undefined)}
                     download={ver.file_name ?? undefined}
