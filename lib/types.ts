@@ -59,7 +59,8 @@ export interface ProposalVersion {
   file_path: string | null; // Storage 경로 (없으면 링크만)
   file_name: string | null;
   file_url: string | null; // 외부 링크로 관리할 경우
-  author_id: string | null;
+  author_id: string | null; // (레거시) 멤버 선택 방식 데이터
+  author_name: string | null; // 자유 입력 작성자명 (없으면 익명)
   changelog: string; // 이전 버전 대비 변경 요약
   created_at: string;
 }

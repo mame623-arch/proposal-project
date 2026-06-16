@@ -210,6 +210,7 @@ export interface VersionInput {
   file_name: string | null;
   file_url: string | null;
   author_id: string | null;
+  author_name: string | null;
   changelog: string;
 }
 

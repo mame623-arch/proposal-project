@@ -14,11 +14,10 @@ import {
   uploadProposalFile,
 } from "@/lib/db";
 import Markdown from "@/components/Markdown";
-import { AuthorSelect } from "@/components/AuthorSelect";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useMembers } from "@/lib/useMembers";
-import { useCurrentMemberId } from "@/lib/currentUser";
 import {
+  Avatar,
   EmptyState,
   Field,
   GhostBtn,
@@ -152,7 +151,6 @@ function ProposalCard({
   onDelete: (id: string) => void;
 }) {
   const { byId } = useMembers();
-  const [currentId] = useCurrentMemberId();
   const [versions, setVersions] = useState<ProposalVersion[]>([]);
   const [open, setOpen] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -161,12 +159,12 @@ function ProposalCard({
     label: string;
     url: string;
     changelog: string;
-    author_id: string | null;
-  }>({ label: "", url: "", changelog: "", author_id: null });
+    author_name: string;
+  }>({ label: "", url: "", changelog: "", author_name: "" });
   const [file, setFile] = useState<File | null>(null);
 
   function openAdd() {
-    setV({ label: "", url: "", changelog: "", author_id: currentId });
+    setV({ label: "", url: "", changelog: "", author_name: "" });
     setFile(null);
     setAdding(true);
   }
@@ -201,10 +199,11 @@ function ProposalCard({
         file_path,
         file_name,
         file_url: v.url.trim() || null,
-        author_id: v.author_id,
+        author_id: null,
+        author_name: v.author_name.trim() || null,
         changelog: v.changelog.trim(),
       });
-      setV({ label: "", url: "", changelog: "", author_id: null });
+      setV({ label: "", url: "", changelog: "", author_name: "" });
       setFile(null);
       setAdding(false);
       await load();
@@ -271,10 +270,12 @@ function ProposalCard({
                   onChange={(e) => setV({ ...v, url: e.target.value })}
                 />
               </Field>
-              <Field label="작성자">
-                <AuthorSelect
-                  value={v.author_id}
-                  onChange={(id) => setV({ ...v, author_id: id })}
+              <Field label="작성자" hint="비우면 익명">
+                <input
+                  className={inputCls}
+                  value={v.author_name}
+                  placeholder="이름 입력 (선택)"
+                  onChange={(e) => setV({ ...v, author_name: e.target.value })}
                 />
               </Field>
             </div>
@@ -343,12 +344,12 @@ function VersionRow({
     label: string;
     url: string;
     changelog: string;
-    author_id: string | null;
+    author_name: string;
   }>({
     label: ver.version_label,
     url: ver.file_url ?? "",
     changelog: ver.changelog ?? "",
-    author_id: ver.author_id,
+    author_name: ver.author_name ?? "",
   });
   const [file, setFile] = useState<File | null>(null);
 
@@ -357,7 +358,7 @@ function VersionRow({
       label: ver.version_label,
       url: ver.file_url ?? "",
       changelog: ver.changelog ?? "",
-      author_id: ver.author_id,
+      author_name: ver.author_name ?? "",
     });
     setFile(null);
     setEditing(true);
@@ -370,7 +371,8 @@ function VersionRow({
         version_label: e.label.trim() || ver.version_label,
         file_url: e.url.trim() || null,
         changelog: e.changelog.trim(),
-        author_id: e.author_id,
+        author_id: null,
+        author_name: e.author_name.trim() || null,
       };
       if (file) {
         const up = await uploadProposalFile(proposalId, file);
@@ -407,10 +409,12 @@ function VersionRow({
                 onChange={(ev) => setE({ ...e, url: ev.target.value })}
               />
             </Field>
-            <Field label="작성자">
-              <AuthorSelect
-                value={e.author_id}
-                onChange={(id) => setE({ ...e, author_id: id })}
+            <Field label="작성자" hint="비우면 익명">
+              <input
+                className={inputCls}
+                value={e.author_name}
+                placeholder="이름 입력 (선택)"
+                onChange={(ev) => setE({ ...e, author_name: ev.target.value })}
               />
             </Field>
           </div>
@@ -450,15 +454,24 @@ function VersionRow({
                 {ver.version_label}
               </span>
               {ver.file_path && (
-                <a
-                  href={fileUrl(ver.file_path, ver.file_name ?? undefined)}
-                  download={ver.file_name ?? undefined}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
-                >
-                  ⬇ {ver.file_name ?? "파일"}
-                </a>
+                <span className="inline-flex items-center gap-2">
+                  <a
+                    href={fileUrl(ver.file_path)}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
+                  >
+                    👁 {ver.file_name ?? "파일"}
+                  </a>
+                  <a
+                    href={fileUrl(ver.file_path, ver.file_name ?? undefined)}
+                    download={ver.file_name ?? undefined}
+                    className="text-[0.78rem] font-semibold text-muted hover:text-body"
+                    title="다운로드"
+                  >
+                    ⬇ 다운로드
+                  </a>
+                </span>
               )}
               {ver.file_url && (
                 <a
@@ -494,10 +507,16 @@ function VersionRow({
               </div>
             )}
             <div className="mt-1.5 flex items-center gap-2 text-[0.74rem] text-faint">
-              <MemberAvatarName
-                member={byId.get(ver.author_id ?? "")}
-                size={18}
-              />
+              {ver.author_name ? (
+                <span className="inline-flex items-center gap-2">
+                  <Avatar name={ver.author_name} size={18} />
+                  <span className="font-medium text-ink">{ver.author_name}</span>
+                </span>
+              ) : ver.author_id ? (
+                <MemberAvatarName member={byId.get(ver.author_id)} size={18} />
+              ) : (
+                <span className="text-faint">익명</span>
+              )}
               <span>· {formatDateTime(ver.created_at)}</span>
             </div>
           </div>

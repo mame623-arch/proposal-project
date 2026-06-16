@@ -73,10 +73,13 @@ create table if not exists proposal_versions (
   file_path     text,                     -- Storage 경로
   file_name     text,
   file_url      text,                     -- 외부 링크로 관리할 경우
-  author_id     uuid references members(id) on delete set null,
+  author_id     uuid references members(id) on delete set null, -- (레거시) 멤버 선택 방식
+  author_name   text,                     -- 자유 입력 작성자명 (없으면 익명)
   changelog     text default '',          -- 이전 버전 대비 변경 요약
   created_at    timestamptz default now()
 );
+-- 기존 테이블에 컬럼이 없으면 추가 (마이그레이션)
+alter table proposal_versions add column if not exists author_name text;
 create index if not exists idx_versions_proposal on proposal_versions (proposal_id, created_at desc);
 
 -- ------------------------------------------------------------
