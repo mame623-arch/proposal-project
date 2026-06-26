@@ -101,14 +101,7 @@ export default function ProposalViewer({
 
 function ViewerBody({ file, kind }: { file: ViewerFile; kind: Kind }) {
   if (kind === "html") {
-    return (
-      <iframe
-        src={file.url}
-        title={file.name}
-        className="h-full min-h-[70vh] w-full bg-white"
-        sandbox="allow-same-origin allow-popups"
-      />
-    );
+    return <HtmlViewer file={file} />;
   }
   if (kind === "pdf") {
     return (
@@ -141,6 +134,83 @@ function ViewerBody({ file, kind }: { file: ViewerFile; kind: Kind }) {
         ⬇ {file.name} 다운로드
       </a>
     </div>
+  );
+}
+
+function HtmlViewer({ file }: { file: ViewerFile }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(
+    "loading"
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    let url: string | null = null;
+    (async () => {
+      try {
+        const res = await fetch(file.url);
+        if (!res.ok) throw new Error(`fetch ${res.status}`);
+        const buf = await res.arrayBuffer();
+        // Supabase Storage는 .html을 text/plain + nosniff + CSP sandbox로 서빙한다.
+        // → iframe src로 직접 열면 (1) HTML이 소스 텍스트로 노출되고
+        //   (2) charset 미지정으로 UTF-8 한글이 깨진다.
+        // 바이트를 받아 우리 앱 출처의 blob(text/html;charset=utf-8)로 렌더하면
+        // Supabase 헤더 영향 없이 정상 표시된다.
+        let text: string;
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
+        } catch {
+          // 구버전 HWP 변환본(CP949/EUC-KR) 대비 폴백
+          text = new TextDecoder("euc-kr").decode(buf);
+        }
+        if (cancelled) return;
+        url = URL.createObjectURL(
+          new Blob([text], { type: "text/html; charset=utf-8" })
+        );
+        setBlobUrl(url);
+        setStatus("ready");
+      } catch (e) {
+        console.error("HTML 렌더 실패:", e);
+        if (!cancelled) setStatus("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [file.url]);
+
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-[0.9rem] text-muted">
+        HTML 문서를 불러오는 중…
+      </div>
+    );
+  }
+  if (status === "error" || !blobUrl) {
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 p-8 text-center">
+        <p className="text-[0.9rem] text-body">
+          이 HTML 파일을 불러오지 못했습니다. 다운로드해서 열어 주세요.
+        </p>
+        <a
+          href={file.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="rounded-lg bg-accent px-4 py-2 text-[0.85rem] font-semibold text-white"
+        >
+          ⬇ {file.name} 다운로드
+        </a>
+      </div>
+    );
+  }
+  return (
+    <iframe
+      src={blobUrl}
+      title={file.name}
+      className="h-full min-h-[70vh] w-full bg-white"
+      sandbox="allow-same-origin allow-popups"
+    />
   );
 }
 
@@ -201,10 +271,10 @@ function HwpViewer({ file }: { file: ViewerFile }) {
       {status === "error" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-8 text-center">
           <p className="text-[0.9rem] text-body">
-            이 한글 파일을 브라우저에서 렌더하지 못했습니다.
+            한글(.hwp) 파일은 브라우저에서 직접 미리보기가 어렵습니다.
             <br />
-            (구버전 HWP가 아니거나 hwpx 형식일 수 있어요.) 다운로드해서 열어
-            주세요.
+            <strong>HTML 버전</strong>을 보거나, 아래에서 다운로드해 한글
+            프로그램으로 열어 주세요.
           </p>
           <a
             href={file.url}
