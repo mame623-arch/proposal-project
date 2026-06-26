@@ -13,6 +13,7 @@ import {
   uploadProposalFile,
 } from "@/lib/db";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import ProposalViewer, { type ViewerFile } from "@/components/ProposalViewer";
 import { useMembers } from "@/lib/useMembers";
 import { useCurrentMemberId } from "@/lib/currentUser";
 import {
@@ -31,6 +32,7 @@ export default function ProposalsPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: "", agency: "", description: "" });
   const [saving, setSaving] = useState(false);
+  const [viewing, setViewing] = useState<ViewerFile | null>(null);
 
   const load = () =>
     fetchProposals()
@@ -133,10 +135,17 @@ export default function ProposalsPage() {
           </EmptyState>
         ) : (
           proposals.map((p) => (
-            <ProposalCard key={p.id} proposal={p} onDelete={removeProposal} />
+            <ProposalCard
+              key={p.id}
+              proposal={p}
+              onDelete={removeProposal}
+              onView={setViewing}
+            />
           ))
         )}
       </div>
+
+      <ProposalViewer file={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }
@@ -144,9 +153,11 @@ export default function ProposalsPage() {
 function ProposalCard({
   proposal,
   onDelete,
+  onView,
 }: {
   proposal: Proposal;
   onDelete: (id: string) => void;
+  onView: (file: ViewerFile) => void;
 }) {
   const { byId } = useMembers();
   const [currentId] = useCurrentMemberId();
@@ -295,14 +306,27 @@ function ProposalCard({
                       {ver.version_label}
                     </span>
                     {ver.file_path && (
-                      <a
-                        href={fileUrl(ver.file_path)}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
-                      >
-                        ⬇ {ver.file_name ?? "파일"}
-                      </a>
+                      <>
+                        <button
+                          onClick={() =>
+                            onView({
+                              url: fileUrl(ver.file_path!),
+                              name: ver.file_name ?? "파일",
+                            })
+                          }
+                          className="rounded-md bg-accentsoft px-2 py-0.5 text-[0.78rem] font-semibold text-accent transition hover:brightness-95"
+                        >
+                          👁 보기
+                        </button>
+                        <a
+                          href={fileUrl(ver.file_path)}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
+                        >
+                          ⬇ {ver.file_name ?? "파일"}
+                        </a>
+                      </>
                     )}
                     {ver.file_url && (
                       <a
