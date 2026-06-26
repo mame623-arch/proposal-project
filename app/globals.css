@@ -190,3 +190,17 @@ h2 {
   max-width: 100%;
   border-radius: 8px;
 }
+
+/* HWPX 미리보기 본문 */
+.hwpx-doc p {
+  margin: 0 0 0.35em;
+  min-height: 1.2em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.hwpx-doc table {
+  font-size: 0.88em;
+}
+.hwpx-doc td p {
+  margin: 0;
+}

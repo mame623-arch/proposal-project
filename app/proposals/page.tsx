@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import Markdown from "@/components/Markdown";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import ProposalViewer, { type ViewerFile } from "@/components/ProposalViewer";
 import { useMembers } from "@/lib/useMembers";
 import {
   Avatar,
@@ -33,6 +34,7 @@ export default function ProposalsPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: "", agency: "", description: "" });
   const [saving, setSaving] = useState(false);
+  const [viewing, setViewing] = useState<ViewerFile | null>(null);
 
   const load = () =>
     fetchProposals()
@@ -135,10 +137,17 @@ export default function ProposalsPage() {
           </EmptyState>
         ) : (
           proposals.map((p) => (
-            <ProposalCard key={p.id} proposal={p} onDelete={removeProposal} />
+            <ProposalCard
+              key={p.id}
+              proposal={p}
+              onDelete={removeProposal}
+              onView={setViewing}
+            />
           ))
         )}
       </div>
+
+      <ProposalViewer file={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }
@@ -146,9 +155,11 @@ export default function ProposalsPage() {
 function ProposalCard({
   proposal,
   onDelete,
+  onView,
 }: {
   proposal: Proposal;
   onDelete: (id: string) => void;
+  onView: (file: ViewerFile) => void;
 }) {
   const { byId } = useMembers();
   const [versions, setVersions] = useState<ProposalVersion[]>([]);
@@ -314,6 +325,7 @@ function ProposalCard({
               ver={ver}
               proposalId={proposal.id}
               byId={byId}
+              onView={onView}
               onChanged={load}
               onDelete={removeVersion}
             />
@@ -328,12 +340,14 @@ function VersionRow({
   ver,
   proposalId,
   byId,
+  onView,
   onChanged,
   onDelete,
 }: {
   ver: ProposalVersion;
   proposalId: string;
   byId: Map<string, Member>;
+  onView: (file: ViewerFile) => void;
   onChanged: () => void;
   onDelete: (id: string) => void;
 }) {
@@ -386,30 +400,6 @@ function VersionRow({
       alert("버전 수정 실패: " + (err as Error).message);
     } finally {
       setSaving(false);
-    }
-  }
-
-  const isHtml = /\.html?$/i.test(ver.file_name ?? ver.file_path ?? "");
-
-  // Supabase Storage 공개 URL은 CSP(default-src 'none'; sandbox)로 서빙되어
-  // HTML을 직접 새 탭에서 열면 인라인 스타일/이미지가 모두 차단된다.
-  // 파일을 직접 받아 우리 앱 출처의 blob URL로 띄우면 CSP 없이 정상 렌더링된다.
-  async function openHtml() {
-    if (!ver.file_path) return;
-    const w = window.open("", "_blank"); // 팝업 차단 회피: 클릭 시점에 먼저 연다
-    try {
-      const res = await fetch(fileUrl(ver.file_path));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const buf = await res.arrayBuffer();
-      const url = URL.createObjectURL(
-        new Blob([buf], { type: "text/html; charset=utf-8" })
-      );
-      if (w) w.location.href = url;
-      else window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      if (w) w.close();
-      alert("미리보기 실패: " + (err as Error).message);
     }
   }
 
@@ -479,23 +469,17 @@ function VersionRow({
               </span>
               {ver.file_path && (
                 <span className="inline-flex items-center gap-2">
-                  {isHtml ? (
-                    <button
-                      onClick={openHtml}
-                      className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
-                    >
-                      👁 {ver.file_name ?? "파일"}
-                    </button>
-                  ) : (
-                    <a
-                      href={fileUrl(ver.file_path)}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="text-[0.82rem] font-semibold text-accent underline underline-offset-2"
-                    >
-                      👁 {ver.file_name ?? "파일"}
-                    </a>
-                  )}
+                  <button
+                    onClick={() =>
+                      onView({
+                        url: fileUrl(ver.file_path!),
+                        name: ver.file_name ?? "파일",
+                      })
+                    }
+                    className="rounded-md bg-accentsoft px-2 py-0.5 text-[0.82rem] font-semibold text-accent transition hover:brightness-95"
+                  >
+                    👁 보기
+                  </button>
                   <a
                     href={fileUrl(ver.file_path, ver.file_name ?? undefined)}
                     download={ver.file_name ?? undefined}

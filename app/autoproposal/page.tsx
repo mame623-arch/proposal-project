@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Markdown from "@/components/Markdown";
+import { AUTOPROPOSAL_ENABLED } from "@/lib/flags";
 import {
   Field,
   GhostBtn,
@@ -127,6 +129,33 @@ export default function AutoproposalPage() {
     } finally {
       setRunning(null);
     }
+  }
+
+  // 클라우드(Vercel) 배포본에서는 비활성 — 실행이 로컬 pixt-runner 에 의존하기 때문.
+  if (!AUTOPROPOSAL_ENABLED) {
+    return (
+      <div className="mx-auto max-w-[1100px] px-5 py-7 md:px-10">
+        <h1>autoproposal</h1>
+        <div className="mt-6 rounded-xl border border-line bg-surface p-6 text-[0.9rem] text-body">
+          <p>
+            이 기능은 <b>로컬 전용</b>입니다. 제안서 자동 작성(autoproposal)은 같은
+            서버에서 도는 Claude Code 실행기(pixt-runner)와 스킬 폴더에 의존하므로,
+            클라우드 배포본에서는 제공하지 않습니다.
+          </p>
+          <p className="mt-3 text-muted">
+            로컬에서 실행하려면 <code>.env.local</code> 에{" "}
+            <code>NEXT_PUBLIC_ENABLE_AUTOPROPOSAL=1</code> 을 넣고{" "}
+            <code>npm run dev</code> 로 띄우면 됩니다. (셋업: <code>pixt-runner/README.md</code>)
+          </p>
+          <Link
+            href="/"
+            className="mt-4 inline-block font-semibold text-accent hover:underline"
+          >
+            ← 홈으로
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
